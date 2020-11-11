@@ -1,6 +1,7 @@
 package pooltask
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -163,8 +164,30 @@ func workFinished(results chan *models.Task) {
 	activeWorkers--
 	delete(currentWorkers, t.ID)
 	mutex.Unlock()
-	log.Println("activeWorkers on finished: ", activeWorkers)
 	log.Println("Finished executing: ", t.ID, t.CreatedAt, t.ExecutedAt, t.FinishedAt)
+	// logic for post/callback 8080
+	cr := &CallbackRequest{
+		t.ID,
+		true,
+	}
+	body, err := json.Marshal(cr)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	r, err := http.NewRequest("POST", "http://localhost:8080/callback", bytes.NewBuffer(body))
+	r.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		log.Println(err)
+	}
+	client := &http.Client{}
+	resp, err := client.Do(r)
+	if err != nil {
+		log.Println(err)
+	} else {
+		defer resp.Body.Close()
+		log.Println("Callback to 8080: ", resp.Status)
+	}
+	log.Println("activeWorkers on finished: ", activeWorkers)
 }
 
 //calc min int value of a map[string]int
