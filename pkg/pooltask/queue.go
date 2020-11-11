@@ -2,11 +2,32 @@ package pooltask
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"strconv"
 	"sync"
+	"time"
 
 	"queueworker/pkg/models"
 )
+
+//numWorkers is the number of go routines that can be executed concurrently
+const maxWorkers = 5
+
+//numWorkers is the number of go routines that are executing now
+var activeWorkers int = 0
+var currentJobs = make(chan *models.Task)
+var processedJobs = make(chan *models.Task)
+
+//currentWorkers is a map with all execution time of current tasks key is the ID of the task
+var currentWorkers map[string]int = make(map[string]int)
+
+//Tasks of the system, will work better with a DB connection
+//but for the task purpose not a requirement asked
+var tasks = make(map[string]*models.Task)
+
+//mutex to protect activeWorkers and tasks from data race
+var mutex = &sync.Mutex{}
 
 //ErrorResponse allows us to send Error message with error status
 type ErrorResponse struct {
@@ -23,11 +44,6 @@ type CallbackRequest struct {
 	ID      string `json:"taskID"`
 	Success bool   `json:"success"`
 }
-
-//Tasks of the system, will work better with a DB connection
-//but for the task purpose not a requirement asked
-var tasks = make(map[string]*models.Task)
-var mutex = &sync.Mutex{}
 
 //HandleHome Handles Home Route and /
 func HandleHome(w http.ResponseWriter, r *http.Request) {
@@ -66,9 +82,6 @@ func HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	t.SetID()
 	t.SetCreatedAt()
-	//Add logic for go routine, check If all workers are busy processing and will be processing them for more than 1 second
-	//if true return HTTP code 503 with "Retry-After" header with calculated time when at least one worker will become ready
-	//else add task to process queue
 	cr := &CreateResponse{
 		ID: t.ID,
 	}
@@ -79,8 +92,21 @@ func HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 		w.Write(e)
 		return
 	}
+	//if activeWorkers  == maxWorkers return HTTP code 503 with "Retry-After" header with calculated time when at least one worker will become ready
 	mutex.Lock()
+	if activeWorkers == maxWorkers {
+		freeIn := strconv.Itoa(minIntMap(currentWorkers))
+		e, _ := json.Marshal(ErrorResponse{"Retry-After " + freeIn + " secs"})
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write(e)
+		mutex.Unlock()
+		return
+	}
+	activeWorkers++
 	tasks[t.ID] = &t
+	go addTask(currentJobs, tasks[t.ID])
+	go processTask(currentJobs, processedJobs)
+	go workFinished(processedJobs)
 	mutex.Unlock()
 	w.Write(response)
 }
@@ -105,4 +131,52 @@ func HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(response)
+}
+
+//work process the task
+func addTask(jobs chan *models.Task, t *models.Task) {
+	log.Println("activeWorkers: ", activeWorkers)
+	jobs <- t
+	mutex.Lock()
+	currentWorkers[t.ID] = t.ExecutionTime
+	mutex.Unlock()
+}
+
+//processTask process the task
+//jobs <-chan only reads on jobs chanel
+//results chan<- only sends on results chanel
+func processTask(jobs <-chan *models.Task, results chan<- *models.Task) {
+	t := <-jobs
+	log.Println("Start executing: ", t)
+	log.Println("For this much seconds: ", t.ExecutionTime)
+	t.SetExecutedAt()
+	time.Sleep(time.Duration(t.ExecutionTime) * time.Second)
+	t.Status = 1
+	t.SetFinishedAt()
+	results <- t
+}
+
+//Task executed
+func workFinished(results chan *models.Task) {
+	t := <-results
+	mutex.Lock()
+	activeWorkers--
+	delete(currentWorkers, t.ID)
+	mutex.Unlock()
+	log.Println("activeWorkers on finished: ", activeWorkers)
+	log.Println("Finished executing: ", t.ID, t.CreatedAt, t.ExecutedAt, t.FinishedAt)
+}
+
+//calc min int value of a map[string]int
+func minIntMap(w map[string]int) int {
+	var min int
+	for _, min = range w {
+		break
+	}
+	for _, e := range w {
+		if e < min {
+			min = e
+		}
+	}
+	return min
 }
