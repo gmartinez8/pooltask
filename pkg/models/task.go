@@ -58,3 +58,15 @@ func (t *Task) SetCreatedAt() {
 	tm := time.Now()
 	t.CreatedAt = tm.Format(timeFormat)
 }
+
+//SetExecutedAt set ExecutedAt datetime in format 2006.01.02 15:04:05.000000
+func (t *Task) SetExecutedAt() {
+	tm := time.Now()
+	t.ExecutedAt = tm.Format(timeFormat)
+}
+
+//SetFinishedAt set FinishedAt datetime in format 2006.01.02 15:04:05.000000
+func (t *Task) SetFinishedAt() {
+	tm := time.Now()
+	t.FinishedAt = tm.Format(timeFormat)
+}
