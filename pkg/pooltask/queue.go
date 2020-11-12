@@ -140,7 +140,7 @@ func HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 //work process the task
 func addTask(jobs chan *models.Task, t *models.Task) {
-	log.Println("activeWorkers: ", activeWorkers)
+	//log.Println("activeWorkers: ", activeWorkers)
 	jobs <- t
 	mutex.Lock()
 	currentWorkers[t.ID] = t.ExecutionTime
@@ -152,8 +152,8 @@ func addTask(jobs chan *models.Task, t *models.Task) {
 //results chan<- only sends on results chanel
 func processTask(jobs <-chan *models.Task, results chan<- *models.Task) {
 	t := <-jobs
-	log.Println("Start executing: ", t)
-	log.Println("For this much seconds: ", t.ExecutionTime)
+	//log.Println("Start executing: ", t)
+	//log.Println("For this much seconds: ", t.ExecutionTime)
 	t.SetExecutedAt()
 	time.Sleep(time.Duration(t.ExecutionTime) * time.Second)
 	t.Status = 1
