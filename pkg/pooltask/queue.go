@@ -30,6 +30,10 @@ var tasks = make(map[string]*models.Task)
 //mutex to protect activeWorkers and tasks from data race
 var mutex = &sync.Mutex{}
 
+//CallbackURL is exported if you whant to change the config of the Callback after processing a task
+//Upon execution of the task, service would issue a callback to CallbackURL
+var CallbackURL = "http://localhost:8080/callback"
+
 //ErrorResponse allows us to send Error message with error status
 type ErrorResponse struct {
 	Message string
@@ -157,15 +161,15 @@ func processTask(jobs <-chan *models.Task, results chan<- *models.Task) {
 	results <- t
 }
 
-//Task executed
+//Task executed, will issue a Callback to CallbackURL with this fields:
+//BODY{ "taskID: string, "success": bool }
 func workFinished(results chan *models.Task) {
 	t := <-results
 	mutex.Lock()
 	activeWorkers--
 	delete(currentWorkers, t.ID)
 	mutex.Unlock()
-	log.Println("Finished executing: ", t.ID, t.CreatedAt, t.ExecutedAt, t.FinishedAt)
-	// logic for post/callback 8080
+	//log.Println("Finished executing: ", t.ID, t.CreatedAt, t.ExecutedAt, t.FinishedAt)
 	cr := &CallbackRequest{
 		t.ID,
 		true,
@@ -174,7 +178,7 @@ func workFinished(results chan *models.Task) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	r, err := http.NewRequest("POST", "http://localhost:8080/callback", bytes.NewBuffer(body))
+	r, err := http.NewRequest("POST", CallbackURL, bytes.NewBuffer(body))
 	r.Header.Set("Content-Type", "application/json")
 	if err != nil {
 		log.Println(err)
@@ -185,9 +189,9 @@ func workFinished(results chan *models.Task) {
 		log.Println(err)
 	} else {
 		defer resp.Body.Close()
-		log.Println("Callback to 8080: ", resp.Status)
+		log.Printf("Callback for TaskID:%s on %s = %s", t.ID, CallbackURL, resp.Status)
 	}
-	log.Println("activeWorkers on finished: ", activeWorkers)
+	//log.Println("activeWorkers on finished: ", activeWorkers)
 }
 
 //calc min int value of a map[string]int
