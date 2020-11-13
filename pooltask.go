@@ -164,6 +164,7 @@ func processTask(jobs <-chan *Task, results chan<- *Task) {
 func workFinished(results chan *Task) {
 	t := <-results
 	mutex.Lock()
+	t.status = 2
 	activeWorkers--
 	delete(currentWorkers, t.ID)
 	mutex.Unlock()
