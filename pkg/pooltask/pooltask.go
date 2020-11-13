@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"queueworker/pkg/models"
 )
 
 //numWorkers is the number of go routines that can be executed concurrently
@@ -17,15 +15,15 @@ const maxWorkers = 5
 
 //numWorkers is the number of go routines that are executing now
 var activeWorkers int = 0
-var currentJobs = make(chan *models.Task)
-var processedJobs = make(chan *models.Task)
+var currentJobs = make(chan *Task)
+var processedJobs = make(chan *Task)
 
 //currentWorkers is a map with all execution time of current tasks key is the ID of the task
 var currentWorkers map[string]int = make(map[string]int)
 
 //Tasks of the system, will work better with a DB connection
 //but for the task purpose not a requirement asked
-var tasks = make(map[string]*models.Task)
+var tasks = make(map[string]*Task)
 
 //mutex to protect activeWorkers and tasks from data race
 var mutex = &sync.Mutex{}
@@ -60,7 +58,7 @@ func HandleListTasks(w http.ResponseWriter, r *http.Request) {
 	mutex.Lock()
 	response, err := json.Marshal(tasks)
 	if len(tasks) == 0 {
-		response, _ = json.Marshal(make([]models.Task, 0))
+		response, _ = json.Marshal(make([]Task, 0))
 	}
 	mutex.Unlock()
 	w.Header().Set("Content-Type", "application/json")
@@ -76,7 +74,7 @@ func HandleListTasks(w http.ResponseWriter, r *http.Request) {
 //HandleCreateTask Handles Route
 func HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
-	var t models.Task
+	var t Task
 	err := decoder.Decode(&t)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
@@ -139,7 +137,7 @@ func HandleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 //work process the task
-func addTask(jobs chan *models.Task, t *models.Task) {
+func addTask(jobs chan *Task, t *Task) {
 	//log.Println("activeWorkers: ", activeWorkers)
 	jobs <- t
 	mutex.Lock()
@@ -150,7 +148,7 @@ func addTask(jobs chan *models.Task, t *models.Task) {
 //processTask process the task
 //jobs <-chan only reads on jobs chanel
 //results chan<- only sends on results chanel
-func processTask(jobs <-chan *models.Task, results chan<- *models.Task) {
+func processTask(jobs <-chan *Task, results chan<- *Task) {
 	t := <-jobs
 	//log.Println("Start executing: ", t)
 	//log.Println("For this much seconds: ", t.ExecutionTime)
@@ -163,7 +161,7 @@ func processTask(jobs <-chan *models.Task, results chan<- *models.Task) {
 
 //Task executed, will issue a Callback to CallbackURL with this fields:
 //BODY{ "taskID: string, "success": bool }
-func workFinished(results chan *models.Task) {
+func workFinished(results chan *Task) {
 	t := <-results
 	mutex.Lock()
 	activeWorkers--

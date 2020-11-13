@@ -1,4 +1,4 @@
-package models
+package pooltask
 
 import (
 	"crypto/rand"
