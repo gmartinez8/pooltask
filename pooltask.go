@@ -13,7 +13,7 @@ import (
 //MaxWorkers is the number of go routines that can be executed concurrently
 const MaxWorkers = 5
 
-//numWorkers is the number of go routines that are executing now
+//activeWorkers is the number of go routines that are executing now
 var activeWorkers int = 0
 var currentJobs = make(chan *Task)
 var processedJobs = make(chan *Task)
@@ -21,7 +21,7 @@ var processedJobs = make(chan *Task)
 //currentWorkers is a map with all execution time of current tasks key is the ID of the task
 var currentWorkers map[string]int = make(map[string]int)
 
-//Tasks of the system, will work better with a DB connection
+//tasks of the system, will work better with a DB connection
 //but for the task purpose not a requirement asked
 var tasks = make(map[string]*Task)
 
@@ -111,28 +111,6 @@ func HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	go processTask(currentJobs, processedJobs)
 	go workFinished(processedJobs)
 	mutex.Unlock()
-	w.Write(response)
-}
-
-//HandleCallback handles all finished tasks
-func HandleCallback(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-	var cr CallbackRequest
-	err := decoder.Decode(&cr)
-	w.Header().Set("Content-Type", "application/json")
-	if err != nil {
-		e, _ := json.Marshal(ErrorResponse{err.Error()})
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(e)
-		return
-	}
-	response, err := json.Marshal(cr)
-	if err != nil {
-		e, _ := json.Marshal(ErrorResponse{err.Error()})
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(e)
-		return
-	}
 	w.Write(response)
 }
 
