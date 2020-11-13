@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-//numWorkers is the number of go routines that can be executed concurrently
-const maxWorkers = 5
+//MaxWorkers is the number of go routines that can be executed concurrently
+const MaxWorkers = 5
 
 //numWorkers is the number of go routines that are executing now
 var activeWorkers int = 0
@@ -95,9 +95,9 @@ func HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 		w.Write(e)
 		return
 	}
-	//if activeWorkers  == maxWorkers return HTTP code 503 with "Retry-After" header with calculated time when at least one worker will become ready
+	//if activeWorkers  == MaxWorkers return HTTP code 503 with "Retry-After" header with calculated time when at least one worker will become ready
 	mutex.Lock()
-	if activeWorkers == maxWorkers {
+	if activeWorkers == MaxWorkers {
 		freeIn := strconv.Itoa(minIntMap(currentWorkers))
 		e, _ := json.Marshal(ErrorResponse{"Retry-After " + freeIn + " secs"})
 		w.WriteHeader(http.StatusServiceUnavailable)
