@@ -48,7 +48,11 @@ func TestHandleCreateTask(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Errorf("Expected status OK; got %v want %v", res.StatusCode, http.StatusOK)
 	}
-
+	//We have access to unexported vars if test are in the same package
+	//Check activeWorkers, should be one (1) because we are testing with only one request
+	if activeWorkers < 1 {
+		t.Errorf("Expected active workers1; got %v want %v", activeWorkers, 1)
+	}
 	var cr CreateResponse
 
 	decoder := json.NewDecoder(io.Reader(res.Body))
